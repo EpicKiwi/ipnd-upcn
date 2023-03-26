@@ -1,3 +1,5 @@
+#!/bin/env python3
+
 import socket
 import struct
 import time
@@ -7,6 +9,7 @@ import upcn
 from pyupcn.agents import make_contact
 from datetime import datetime, timedelta
 import threading
+import os
 
 PERIOD = 10
 DESTINATION_V4 = "224.0.0.26"
@@ -14,9 +17,10 @@ DESTINATION_V6 = "FF02::1"
 DESTINATION_PORT = 3003
 AAP_PREFIX = "ipcn"
 
+socket_path = "/var/run/user/{}/upcn.socket".format(os.getuid())
 
 def start_beacon_server():
-    with upcn.upcn_sock(AAP_PREFIX+"/server") as aap:
+    with upcn.upcn_sock(AAP_PREFIX+"/server", socket_path=socket_path) as aap:
 
         message = IPNDMessage()
         message.eid = aap.eid
@@ -63,7 +67,7 @@ def start_beacon_server():
 
 
 def start_beacon_client():
-    with upcn.upcn_sock(AAP_PREFIX+"/client") as aap:
+    with upcn.upcn_sock(AAP_PREFIX+"/client", socket_path=socket_path) as aap:
         with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as sock:
 
             sock.bind(('', DESTINATION_PORT))
