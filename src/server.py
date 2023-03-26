@@ -4,14 +4,16 @@ import socket
 import struct
 import time
 from ipnd.message import IPNDMessage
-from ipnd.service import TCPCLService, CLAService
+from ipnd.service import TCPCLService, CLAService, Service
 import upcn
 from pyupcn.agents import make_contact
 from datetime import datetime, timedelta
 import threading
 import os
+import netifaces
+from dataclasses import dataclass
 
-PERIOD = 10
+PERIOD = 1
 DESTINATION_V4 = "224.0.0.26"
 DESTINATION_V6 = "FF02::1"
 DESTINATION_PORT = 3003
@@ -20,50 +22,68 @@ AAP_PREFIX = "ipcn"
 socket_path = "/var/run/user/{}/upcn.socket".format(os.getuid())
 
 def start_beacon_server():
+
+    services:list[Service] = []
+
+    for iface_name in netifaces.interfaces():    
+        if iface_name == "lo":
+            continue
+        
+        addresses = netifaces.ifaddresses(iface_name)
+
+        if socket.AF_INET in addresses:
+            services += map(lambda it: TCPCLService(it["addr"], 4556), addresses[socket.AF_INET])
+
+        if socket.AF_INET6 in addresses:
+            services += map(lambda it: TCPCLService(it["addr"], 4556), addresses[socket.AF_INET6])
+
+    print("Advertizing services :")
+    for it in services:
+        print("\t", it)
+
     with upcn.upcn_sock(AAP_PREFIX+"/server", socket_path=socket_path) as aap:
 
-        message = IPNDMessage()
-        message.eid = aap.eid
-        message.period = PERIOD
-        message.sequence_number = 0
-        message.services += (
-            TCPCLService("2a01:cb14:3cd:2b00:29c:5d07:9e44:f5a4", 4556),
-        )
-        period_timeout = datetime.now()
+        print("Advertizing {} (period: {}s)".format(aap.eid, PERIOD))
 
-        with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as sock:
+        ttl = struct.pack('b', 1)
 
-            ttl = struct.pack('b', 1)
-            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+        with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as v6sock:
+            v6sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+            v6sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_LOOP, 0)
+            print("Emitting on {}:{}".format(DESTINATION_V4, DESTINATION_PORT))
 
-            if socket.has_ipv6:
-                sock.setsockopt(socket.IPPROTO_IPV6,
-                                socket.IPV6_MULTICAST_LOOP, 0)
-                print("Emitting on IPv6 {}:{}".format(
-                    DESTINATION_V6, DESTINATION_PORT))
-            else:
-                print("Emitting on IPv4 {}:{}".format(
-                    DESTINATION_V4, DESTINATION_PORT))
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as v4sock:
+                v4sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+                print("Emitting on {}:{}".format(DESTINATION_V6, DESTINATION_PORT))
 
-            while True:
+                message = IPNDMessage()
+                message.eid = aap.eid
+                message.period = PERIOD
+                message.sequence_number = 0
+                message.services = services
+                period_timeout = datetime.now()
 
-                now = datetime.now()
+                while True:
 
-                if now > period_timeout:
+                    now = datetime.now()
 
-                    encoded_message = message.encode()
-                    if socket.has_ipv6:
-                        sock.sendto(encoded_message,
+                    if now > period_timeout:
+                        print("\rBeacon {}".format(message.sequence_number), end="")
+
+                        encoded_message = message.encode()
+
+                        v6sock.sendto(encoded_message,
                                     (DESTINATION_V6, DESTINATION_PORT))
-                    else:
-                        sock.sendto(encoded_message,
+                        
+                        v4sock.sendto(encoded_message,
                                     (DESTINATION_V4, DESTINATION_PORT))
 
-                    message.sequence_number += 1
-                    period_timeout = now + timedelta(seconds=PERIOD)
+                        message.sequence_number += 1
 
-                else:
-                    time.sleep((period_timeout - now).seconds)
+                        period_timeout = now + timedelta(seconds=PERIOD)
+
+                    else:
+                        time.sleep((period_timeout - now).seconds)
 
 
 def start_beacon_client():
@@ -111,7 +131,6 @@ def start_beacon_client():
                 aap.set_contact(ipnd_mess.eid, cla_address, contacts=[
                     make_contact(0, ipnd_mess.period+ipnd_mess.period/2, 1000)
                 ])
-
 
 server_thread = threading.Thread(target=start_beacon_server)
 client_thread = threading.Thread(target=start_beacon_client)
