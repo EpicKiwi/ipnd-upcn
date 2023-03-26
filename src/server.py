@@ -2,8 +2,9 @@ import socket
 import struct
 import time
 from ipnd.message import IPNDMessage
-from ipnd.service import TCPCLService
+from ipnd.service import TCPCLService, CLAService
 import upcn
+from pyupcn.agents import make_contact
 from datetime import datetime, timedelta
 import threading
 
@@ -88,9 +89,24 @@ def start_beacon_client():
 
                 try:
                     ipnd_mess = IPNDMessage.decode(mess)
-                    print(ipnd_mess)
                 except Exception as e:
                     print("Invalid ipnd packet received : {}".format(e))
+
+                if ipnd_mess.eid is None:
+                    print("received message from unknown eid, skipping...")
+                    continue
+
+                cla_services = filter(lambda it: isinstance(
+                    it, CLAService), ipnd_mess.services)
+                cla_address = ";".join(
+                    map(lambda it: it.get_cla_address(), cla_services))
+
+                print("Received message from {}".format(
+                    ipnd_mess.eid))
+
+                aap.set_contact(ipnd_mess.eid, cla_address, contacts=[
+                    make_contact(0, ipnd_mess.period+ipnd_mess.period/2, 1000)
+                ])
 
 
 server_thread = threading.Thread(target=start_beacon_server)
