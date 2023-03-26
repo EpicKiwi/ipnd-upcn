@@ -7,7 +7,7 @@ import upcn
 from datetime import datetime, timedelta
 import threading
 
-PERIOD = 1
+PERIOD = 10
 DESTINATION_V4 = "224.0.0.26"
 DESTINATION_V6 = "FF02::1"
 DESTINATION_PORT = 3003
@@ -21,6 +21,9 @@ def start_beacon_server():
         message.eid = aap.eid
         message.period = PERIOD
         message.sequence_number = 0
+        message.services += (
+            TCPCLService("2a01:cb14:3cd:2b00:29c:5d07:9e44:f5a4", 4556),
+        )
         period_timeout = datetime.now()
 
         with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as sock:
