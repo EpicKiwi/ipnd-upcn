@@ -1,0 +1,11 @@
+[Unit]
+Description=ipnd advertizing
+After=network.target
+After=upcn@.service
+
+[Service]
+ExecStart=/usr/bin/ipnd
+Type=simple
+
+[Install]
+WantedBy=default.target
