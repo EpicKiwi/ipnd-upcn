@@ -119,6 +119,10 @@ def start_beacon_client():
                 if ipnd_mess.eid is None:
                     print("received message from unknown eid, skipping...")
                     continue
+                
+                if ipnd_mess.eid == aap.eid:
+                    # Advertized myself, skipping
+                    continue
 
                 cla_services = filter(lambda it: isinstance(
                     it, CLAService), ipnd_mess.services)
