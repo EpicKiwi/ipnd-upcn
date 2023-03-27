@@ -13,7 +13,7 @@ import os
 import netifaces
 from dataclasses import dataclass
 
-PERIOD = 1
+PERIOD = 10
 DESTINATION_V4 = "224.0.0.26"
 DESTINATION_V6 = "FF02::1"
 DESTINATION_PORT = 3003
@@ -68,7 +68,7 @@ def start_beacon_server():
                     now = datetime.now()
 
                     if now > period_timeout:
-                        print("\rBeacon {}".format(message.sequence_number), end="")
+                        print("\rBeacon {} ".format(message.sequence_number), end="")
 
                         encoded_message = message.encode()
 
@@ -124,13 +124,18 @@ def start_beacon_client():
                     # Advertized myself, skipping
                     continue
 
-                cla_services = filter(lambda it: isinstance(
-                    it, CLAService), ipnd_mess.services)
-                cla_address = ";".join(
-                    map(lambda it: it.get_cla_address(), cla_services))
-
                 print("Received message from {}".format(
                     ipnd_mess.eid))
+
+                cla_service = list(filter(lambda it: isinstance(
+                    it, CLAService), ipnd_mess.services))
+
+                if len(cla_service) == 0:
+                    print("No CLA Service available")
+                    continue
+
+                # TODO Do a better selectio of the best CLA
+                cla_address = cla_service[0].get_cla_address()
 
                 aap.set_contact(ipnd_mess.eid, cla_address, contacts=[
                     make_contact(0, ipnd_mess.period+ipnd_mess.period/2, 1000)
