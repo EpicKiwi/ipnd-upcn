@@ -13,7 +13,7 @@ import os
 import netifaces
 from dataclasses import dataclass
 
-PERIOD = 10
+PERIOD = 3
 DESTINATION_V4 = "224.0.0.26"
 DESTINATION_V6 = "FF02::1"
 DESTINATION_PORT = 3003
